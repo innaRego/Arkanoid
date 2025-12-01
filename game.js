@@ -5,6 +5,7 @@ const KEYS = {
 };
 
 let game = {
+  running: true,
   ctx: null,
   platform: null,
   ball: null,
@@ -85,12 +86,14 @@ let game = {
     }
   },
   run() {
+    if (this.running) { 
     window.requestAnimationFrame(() => {
         this.update();
         this.render();
         this.run();
     });
-  },
+  }
+ },
   render() {
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(this.sprites.background, 0, 0);
@@ -174,7 +177,9 @@ game.ball = {
         this.y = 0;
         this.dy = this.velocity;
       } else if (ballBottom > worldBottom) {
-        console.log('game over');
+        game.running = false;
+        alert("Вы проиграли");
+        window.location.reload();
       }
     },
     bumpBlock(block) {
@@ -244,7 +249,7 @@ game.platform = {
       }
     }
   };
-  
+
 window.addEventListener("load", () => {
     game.start();
 });
