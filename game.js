@@ -27,8 +27,7 @@ let game = {
     window.addEventListener("keydown", e => {
       if (e.keyCode === KEYS.SPACE) {
         this.platform.fire();
-      }
-      else if (e.keyCode === KEYS.LEFT || e.keyCode === KEYS.RIGHT) {
+      } else if (e.keyCode === KEYS.LEFT || e.keyCode === KEYS.RIGHT) {
         this.platform.start(e.keyCode);
       } 
     });
@@ -66,10 +65,11 @@ let game = {
     }
   },
   update() {
-    this.platform.move();
-    this.ball.move();
     this.collideBlocks();
     this.collidePlatform();
+    this.ball.collideWorIdBounds();
+    this.platform.move();
+    this.ball.move();
   },
   collideBlocks() {
     for (let block of this.blocks) {
@@ -99,7 +99,7 @@ let game = {
   },
   renderBlocks() {
     for (let block of this.blocks) {
-      if (block.active){
+      if (block.active) {
         this.ctx.drawImage(this.sprites.block, block.x, block.y);
       }
       
@@ -116,6 +116,7 @@ let game = {
     return Math.floor(Math.random() * (max - min + 1) + min);
   }
 };
+
 game.ball = {
     dx: 0,
     dy: 0,
@@ -148,16 +149,46 @@ game.ball = {
           }
       return false;
     },
+    collideWorIdBounds() {
+      let x = this.x + this.dx;
+      let y = this.y + this.dy;
+
+      let ballLeft = x;
+      let ballRight = ballLeft + this.width;
+      let ballTop = y;
+      let ballBottom = ballTop + this.height;
+
+      let worldLeft = 0;
+      let worldRight = game.width;
+      let worldTop = 0;
+      let worldBottom = game.height;
+
+      if (ballLeft < worldLeft) {
+        this.x = 0;
+        this.dx - this.velocity;
+      } else if (ballRight > worldRight) {
+        this.x = worldRight - this.width;
+        this.dx = - this.velocity;
+      } else if (ballTop < worldTop) {
+        this.y = 0;
+        this.dy = this.velocity;
+      } else if (ballBottom > worldBottom) {
+        console.log('game over');
+      }
+    },
     bumpBlock(block) {
       this.dy *= -1;
       block.active = false;
     },
     bumpPlatform(platform) {
-      this.dy *= -1;
-      let touchX = this.x + this.width / 2;
-      this.dx = this.velocity * platform.getTouchOffset(touchX);
+      if (this.dy > 0) {
+        this.dy = -this.velocity;
+        let touchX = this.x + this.width / 2;
+        this.dx = this.velocity * platform.getTouchOffset(touchX);
+      }
     }
- };
+  };
+
 game.platform = {
     velocity: 6,
     dx: 0,
@@ -186,17 +217,18 @@ game.platform = {
       if (this.dx) {
         this.x += this.dx;
         if (this.ball) {
-          this.ball.x += this.dx;
+           this.ball.x += this.dx;
         }
       }
     },
     getTouchOffset(x) {
-      let diff = (this.x + this.width) -x;
+      let diff = (this.x + this.width) - x;
       let offset = this.width - diff;
       let result = 2 * offset / this.width;
       return result - 1;
     }
 };
+
 window.addEventListener("load", () => {
     game.start();
 });
