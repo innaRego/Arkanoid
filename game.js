@@ -59,17 +59,17 @@ let game = {
     for (let key in this.sprites) {
         this.sprites[key] = new Image();
         this.sprites[key].src = "img/" + key + ".png";
-        this.sprites[key].addEventListener("load", onImageLoad);
+        this.sprites[key].addEventListener("load", onResourceLoad);
     }
   },
-  preloadAudio(onResourceLoad) { 
+  preloadAudio(onResourceLoad) {
     for (let key in this.sounds) {
       this.sounds[key] = new Audio("sounds/" + key + ".mp3");
-      this.sounds[key].addEventListener("canplaythrough", onResourceLoad, {once: true});
+      this.sounds[key].addEventListener("canplaythrough", onResourceLoad, {onse: true});
     }
   },
   create() {
-    for (let row = 0; row < this.this.rows; row++) {
+    for (let row = 0; row < this.rows; row++) {
       for (let col = 0; col < this.cols; col++) {
           this.blocks.push({
           active: true,
@@ -207,7 +207,8 @@ game.ball = {
         game.sounds.bump.play();
       } else if (ballTop < worldTop) {
         this.y = 0;
-        this.dy = this.velocity;game.sounds.bump.play();
+        this.dy = this.velocity;
+        game.sounds.bump.play();
       } else if (ballBottom > worldBottom) {
         game.end("Вы проиграли");
         
