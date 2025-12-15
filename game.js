@@ -22,24 +22,28 @@ let game = {
     block: null
   },
   sounds: {
-    bump: null,
+    bump: null
   },
+
+  // исправлено: init() без двоеточия
   init() {
     this.ctx = document.getElementById("mycanvas").getContext("2d");
     this.setEvents();
   },
+
   setEvents() {
     window.addEventListener("keydown", e => {
       if (e.keyCode === KEYS.SPACE) {
         this.platform.fire();
       } else if (e.keyCode === KEYS.LEFT || e.keyCode === KEYS.RIGHT) {
         this.platform.start(e.keyCode);
-      } 
+      }
     });
-    window.addEventListener("keyup", e => {
+    window.addEventListener("keyup", () => {
       this.platform.stop();
     });
   },
+
   preload(callback) {
     let loaded = 0;
     let required = Object.keys(this.sprites).length;
@@ -55,23 +59,29 @@ let game = {
     this.preloadSprites(onResourceLoad);
     this.preloadAudio(onResourceLoad);
   },
-  preloadSprites(onResourceLoad) { 
+
+  preloadSprites(onResourceLoad) {
     for (let key in this.sprites) {
-        this.sprites[key] = new Image();
-        this.sprites[key].src = "img/" + key + ".png";
-        this.sprites[key].addEventListener("load", onResourceLoad);
+      this.sprites[key] = new Image();
+      this.sprites[key].src = "img/" + key + ".png";
+      this.sprites[key].addEventListener("load", onResourceLoad);
     }
   },
+
   preloadAudio(onResourceLoad) {
     for (let key in this.sounds) {
+      // корректная работа со звуком
       this.sounds[key] = new Audio("sounds/" + key + ".mp3");
-      this.sounds[key].addEventListener("canplaythrough", onResourceLoad, {onse: true});
+      this.sounds[key].addEventListener("canplaythrough", onResourceLoad, { once: true });
+      // принудительно инициируем загрузку
+      this.sounds[key].load();
     }
   },
+
   create() {
     for (let row = 0; row < this.rows; row++) {
       for (let col = 0; col < this.cols; col++) {
-          this.blocks.push({
+        this.blocks.push({
           active: true,
           width: 60,
           height: 20,
@@ -80,15 +90,152 @@ let game = {
         });
       }
     }
+
+    // создаём платформу и шар отдельно после блоков
+    this.platform = {
+      velocity: 6,
+      dx: 0,
+      x: 280,
+      y: 300,
+      width: 100,
+      height: 14,
+      ball: this.ball,
+      fire: function() {
+        if (this.ball) {
+          this.ball.start();
+          this.ball = null;
+        }
+      },
+      start: function(direction) {
+        if (direction === KEYS.LEFT) {
+          this.dx = -this.velocity;
+        } else if (direction === KEYS.RIGHT) {
+          this.dx = this.velocity;
+        }
+      },
+      stop: function() {
+        this.dx = 0;
+      },
+      move: function() {
+        if (this.dx) {
+          this.x += this.dx;
+          if (this.ball) {
+            this.ball.x += this.dx;
+          }
+        }
+      },
+      getTouchOffset: function(x) {
+        let diff = (this.x + this.width) - x;
+        let offset = this.width - diff;
+        let result = 2 * offset / this.width;
+        return (result - 1);
+      },
+      collideWorldBounds: function() {
+        let x = this.x + this.dx;
+        let platformLeft = x;
+        let platformRight = platformLeft + this.width;
+        let worldLeft = 0;
+        let worldRight = game.width;
+
+        if (platformLeft < worldLeft || platformRight > worldRight) {
+          this.dx = 0;
+        }
+      }
+    };
+
+    // шар
+    this.ball = {
+      dx: 0,
+      dy: 0,
+      velocity: 3,
+      x: 320,
+      y: 280,
+      width: 20,
+      height: 20,
+      start: () => {
+        this.ball.dy = -this.ball.velocity;
+        this.ball.dx = game.random(-this.ball.velocity, this.ball.velocity);
+      },
+      move: () => {
+        if (this.ball.dy) {
+          this.ball.y += this.ball.dy;
+        }
+        if (this.ball.dx) {
+          this.ball.x += this.ball.dx;
+        }
+      },
+      collide: (element) => {
+        let x = this.ball.x + this.ball.dx;
+        let y = this.ball.y + this.ball.dy;
+
+        if (x + this.ball.width > element.x &&
+            x < element.x + element.width &&
+            y + this.ball.height > element.y &&
+            y < element.y + element.height) {
+          return true;
+        }
+        return false;
+      },
+      collideWorldBounds: () => {
+        let x = this.ball.x + this.ball.dx;
+        let y = this.ball.y + this.ball.dy;
+
+        let ballLeft = x;
+        let ballRight = ballLeft + this.ball.width;
+        let ballTop = y;
+        let ballBottom = ballTop + this.ball.height;
+
+        let worldLeft = 0;
+        let worldRight = game.width;
+        let worldTop = 0;
+        let worldBottom = game.height;
+
+        if (ballLeft < worldLeft) {
+          this.ball.x = 0;
+          this.ball.dx = this.ball.velocity;
+          game.sounds.bump.play();
+        } else if (ballRight > worldRight) {
+          this.ball.x = worldRight - this.ball.width;
+          this.ball.dx = -this.ball.velocity;
+          game.sounds.bump.play();
+        } else if (ballTop < worldTop) {
+          this.ball.y = 0;
+          this.ball.dy = this.ball.velocity;
+          game.sounds.bump.play();
+        } else if (ballBottom > worldBottom) {
+          game.end("Вы проиграли");
+        }
+      },
+      bumpBlock: (block) => {
+        this.ball.dy *= -1;
+        block.active = false;
+      },
+      bumpPlatform: (platform) => {
+        if (platform.dx) {
+          this.ball.x += platform.dx;
+        }
+
+        if (this.ball.dy > 0) {
+          this.ball.dy = -this.ball.velocity;
+          let touchX = this.ball.x + this.ball.width / 2;
+          this.ball.dx = this.ball.velocity * platform.getTouchOffset(touchX);
+        }
+      }
+    };
+
+    // Привязка ball к платформе, чтобы платформа держала шар до старта
+    this.platform.ball = this.ball;
   },
+
   update() {
     this.collideBlocks();
     this.collidePlatform();
-    this.ball.collideWorIdBounds();
-    this.platform.collideWorIdBounds();
+    this.ball.collideWorldBounds();
+    this.platform.collideWorldBounds();
     this.platform.move();
     this.ball.move();
   },
+
   addScore() {
     ++this.score;
 
@@ -96,6 +243,7 @@ let game = {
       this.end("Вы победили");
     }
   },
+
   collideBlocks() {
     for (let block of this.blocks) {
       if (block.active && this.ball.collide(block)) {
@@ -105,21 +253,24 @@ let game = {
       }
     }
   },
+
   collidePlatform() {
     if (this.ball.collide(this.platform)) {
       this.ball.bumpPlatform(this.platform);
       this.sounds.bump.play();
     }
   },
+
   run() {
-    if (this.running) { 
-    window.requestAnimationFrame(() => {
+    if (this.running) {
+      window.requestAnimationFrame(() => {
         this.update();
         this.render();
         this.run();
-    });
-  }
- },
+      });
+    }
+  },
+
   render() {
     this.ctx.clearRect(0, 0, this.width, this.height);
     this.ctx.drawImage(this.sprites.background, 0, 0);
@@ -127,6 +278,7 @@ let game = {
     this.ctx.drawImage(this.sprites.platform, this.platform.x, this.platform.y);
     this.renderBlocks();
   },
+
   renderBlocks() {
     for (let block of this.blocks) {
       if (block.active) {
@@ -134,156 +286,28 @@ let game = {
       }
     }
   },
-  start: function() {
+
+  start() {
     this.init();
     this.preload(() => {
-        this.create();
-        this.run();
+      this.create();
+      this.run();
     });
   },
+
   end(message) {
     this.running = false;
     alert(message);
     window.location.reload();
   },
+
   random(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min);
   }
 };
 
-game.ball = {
-    dx: 0,
-    dy: 0,
-  velocity: 3,
-    x: 320,
-    y: 280,
-    width: 20,
-    height: 20,
-    start() {
-      this.dy = -this.velocity;
-      this.dx = game.random(-this.velocity, this.velocity);
-    },
-    move() {
-      if (this.dy) {
-        this.y += this.dy;
-      }
-      if (this.dx) {
-        this.x += this.dx;
-      }
-    },
-    collide(element) {
-      let x = this.x + this.dx;
-      let y = this.y + this.dy;
-
-      if (x + this.width > element.x &&
-          x < element.x + element.width &&
-          y + this.height > element.y &&
-          y < element .y + element.height) {
-            return true;
-          }
-      return false;
-    },
-    collideWorIdBounds() {
-      let x = this.x + this.dx;
-      let y = this.y + this.dy;
-
-      let ballLeft = x;
-      let ballRight = ballLeft + this.width;
-      let ballTop = y;
-      let ballBottom = ballTop + this.height;
-
-      let worldLeft = 0;
-      let worldRight = game.width;
-      let worldTop = 0;
-      let worldBottom = game.height;
-
-      if (ballLeft < worldLeft) {
-        this.x = 0;
-        this.dx - this.velocity;
-        game.sounds.bump.play();
-      } else if (ballRight > worldRight) {
-        this.x = worldRight - this.width;
-        this.dx = - this.velocity;
-        game.sounds.bump.play();
-      } else if (ballTop < worldTop) {
-        this.y = 0;
-        this.dy = this.velocity;
-        game.sounds.bump.play();
-      } else if (ballBottom > worldBottom) {
-        game.end("Вы проиграли");
-        
-      }
-    },
-    bumpBlock(block) {
-      this.dy *= -1;
-      block.active = false;
-    },
-    bumpPlatform(platform) {
-      if (platform.dx) {
-        this.x += platform.dx;
-      }
-
-       if  (this.dy > 0) {
-        this.dy = -this.velocity;
-        let touchX = this.x + this.width / 2;
-        this.dx = this.velocity * platform.getTouchOffset(touchX);
-      }
-    }
-  };
-
-game.platform = {
-    velocity: 6,
-    dx: 0,
-    x: 280,
-    y: 300,
-    width: 100,
-    height: 14,
-    ball: game.ball,
-    fire() {
-      if (this.ball) {
-        this.ball.start();
-        this.ball = null;
-      }
-    },
-    start(direction) {
-      if (direction === KEYS.LEFT) {
-        this.dx = -this.velocity;
-      } else if (direction === KEYS.RIGHT) {
-        this.dx = this.velocity;
-      }
-    },
-    stop() {
-      this.dx = 0;
-    },
-    move() {
-      if (this.dx) {
-        this.x += this.dx;
-        if (this.ball) {
-           this.ball.x += this.dx;
-        }
-      }
-    },
-    getTouchOffset(x) {
-      let diff = (this.x + this.width) - x;
-      let offset = this.width - diff;
-      let result = 2 * offset / this.width;
-      return result - 1;
-    },
-    collideWorIdBounds() {
-      let x = this.x + this.dx;
-      let platformLeft = x;
-      let platformRight = platformLeft + this.width;
-      let worldLeft = 0;
-      let worldRight = game.width;
-
-      if (platformLeft < worldLeft || platformRight > worldRight) {
-        this.dx = 0;
-      }
-    }
-  };
-
+// Привязка ball и платформы после загрузки ресурсов будет работать через start().
+// Но чтобы начать, вызываем game.start() на загрузке страницы.
 window.addEventListener("load", () => {
-    game.start();
+  game.start();
 });
-
-
